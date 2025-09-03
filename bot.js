@@ -151,6 +151,35 @@ class CryptoTradingBot {
      */
     async placeOrder(side, amount) {
         try {
+            // Add safety checks for minimum order amounts
+            if (side === 'sell') {
+                let minimumAmount;
+                if (this.baseCurrency === 'ETH') {
+                    minimumAmount = 0.001;
+                } else if (this.baseCurrency === 'BTC') {
+                    minimumAmount = 0.00001;
+                } else if (this.baseCurrency === 'SOL') {
+                    minimumAmount = 0.01;
+                } else {
+                    minimumAmount = 0.1;
+                }
+                
+                if (amount < minimumAmount) {
+                    this.log(`Order rejected: Amount ${amount} ${this.baseCurrency} is below minimum ${minimumAmount}`, 'ERROR');
+                    
+                    // Log failed transaction
+                    this.logTransaction(
+                        side.toUpperCase(),
+                        amount,
+                        this.lastPrice || 0,
+                        'N/A',
+                        'FAILED_MIN_SIZE'
+                    );
+                    
+                    return false;
+                }
+            }
+            
             this.log(`Attempting to place ${side} order for ${amount} ${side === 'buy' ? this.quoteCurrency : this.baseCurrency}`, 'WARNING');
             
             const orderResponse = await this.client.placeOrder(this.symbol, side, amount);
@@ -262,14 +291,14 @@ class CryptoTradingBot {
                 priceChangeFromLast = (currentPrice - this.lastPrice) / this.lastPrice;
             }
 
-            this.log(`${this.symbol}: $${currentPrice.toFixed(this.symbol === 'BTC-USDT' ? 2 : 4)} | ${this.baseCurrency}: ${this.positions[this.baseCurrency].toFixed(6)} | Available USDT: $${availableUsdt.toFixed(2)} | Price change: ${(priceChangeFromLast * 100).toFixed(2)}%`);
+            this.log(`${this.symbol}: $${currentPrice.toFixed(this.symbol === 'BTC-USDT' ? 2 : 4)} | ${this.baseCurrency}: ${this.positions[this.baseCurrency].toFixed(6)} | Available USDT: $${availableUsdt.toFixed(2)} | Price change: ${(priceChangeFromLast * 100).toFixed(4)}% | Threshold: ±${(this.priceChangeThreshold * 100).toFixed(4)}%`);
 
             // Buy condition: Price dropped AND we have enough available USDT
             if (priceChangeFromLast <= -this.priceChangeThreshold && availableUsdt >= this.minOrderSize) {
                 const buyAmount = Math.floor(availableUsdt * 0.99); // Use 99% of available USDT
                 
                 if (buyAmount >= this.minOrderSize) {
-                    this.log(`🔻 Price dropped ${(Math.abs(priceChangeFromLast) * 100).toFixed(2)}% - Executing BUY order`, 'INFO');
+                    this.log(`🔻 Price dropped ${(Math.abs(priceChangeFromLast) * 100).toFixed(4)}% (threshold: ${(this.priceChangeThreshold * 100).toFixed(4)}%) - Executing BUY order`, 'WARNING');
                     await this.placeOrder('buy', buyAmount);
                 } else {
                     this.log(`Buy amount $${buyAmount} is below minimum order size $${this.minOrderSize}`, 'WARNING');
@@ -280,41 +309,40 @@ class CryptoTradingBot {
                 const priceChangeFromBuy = (currentPrice - this.lastBuyPrice) / this.lastBuyPrice;
                 
                 if (priceChangeFromBuy >= this.priceChangeThreshold) {
-                    this.log(`📈 Price rose ${(priceChangeFromBuy * 100).toFixed(2)}% from buy price - Executing SELL order`, 'INFO');
+                    this.log(`📈 Price rose ${(priceChangeFromBuy * 100).toFixed(4)}% (threshold: ${(this.priceChangeThreshold * 100).toFixed(4)}%) from buy price - Executing SELL order`, 'WARNING');
                     
-                    // Fix: Better calculation for small balances
+                    // Fix: Better calculation for small balances with proper minimums
                     const availableBalance = this.positions[this.baseCurrency];
                     let sellAmount;
+                    let minimumOrderAmount;
                     
                     if (this.baseCurrency === 'ETH') {
                         // For ETH, use more precision and minimum viable amount
-                        sellAmount = Math.max(
-                            Math.floor(availableBalance * 0.99 * 100000) / 100000, // 5 decimal precision
-                            0.001 // Minimum 0.001 ETH
-                        );
+                        minimumOrderAmount = 0.001; // Minimum 0.001 ETH
+                        sellAmount = Math.floor(availableBalance * 0.99 * 100000) / 100000; // 5 decimal precision
                     } else if (this.baseCurrency === 'BTC') {
                         // For BTC, use 8 decimal precision
-                        sellAmount = Math.max(
-                            Math.floor(availableBalance * 0.99 * 100000000) / 100000000,
-                            0.00001 // Minimum 0.00001 BTC
-                        );
+                        minimumOrderAmount = 0.00001; // Minimum 0.00001 BTC
+                        sellAmount = Math.floor(availableBalance * 0.99 * 100000000) / 100000000;
+                    } else if (this.baseCurrency === 'SOL') {
+                        // For SOL, use appropriate precision and minimum
+                        minimumOrderAmount = 0.01; // Minimum 0.01 SOL (about $2-3)
+                        sellAmount = Math.floor(availableBalance * 0.99 * 10000) / 10000; // 4 decimal precision
                     } else {
                         // For other tokens like WLFI, use appropriate precision
-                        sellAmount = Math.max(
-                            Math.floor(availableBalance * 0.99 * 1000) / 1000,
-                            0.1 // Minimum 0.1 tokens
-                        );
+                        minimumOrderAmount = 0.1; // Minimum 0.1 tokens
+                        sellAmount = Math.floor(availableBalance * 0.99 * 1000) / 1000;
                     }
                     
                     // Ensure we don't try to sell more than available
                     sellAmount = Math.min(sellAmount, availableBalance);
                     
-                    // Check if sell amount is viable before attempting order
-                    if (sellAmount > 0 && sellAmount <= availableBalance) {
+                    // Check if sell amount meets minimum requirements before attempting order
+                    if (sellAmount >= minimumOrderAmount && sellAmount <= availableBalance) {
                         this.log(`Calculated sell amount: ${sellAmount} ${this.baseCurrency} (from balance: ${availableBalance})`, 'INFO');
                         await this.placeOrder('sell', sellAmount);
                     } else {
-                        this.log(`Cannot sell: calculated amount ${sellAmount} is invalid (available: ${availableBalance} ${this.baseCurrency})`, 'WARNING');
+                        this.log(`Cannot sell: calculated amount ${sellAmount} ${this.baseCurrency} is below minimum ${minimumOrderAmount} or invalid (available: ${availableBalance})`, 'WARNING');
                     }
                 }
             }
@@ -341,9 +369,12 @@ class CryptoTradingBot {
 
         this.log('🚀 Starting OKX Crypto Trading Bot...', 'SUCCESS');
         this.log(`Trading pair: ${this.symbol}`, 'INFO');
-        this.log(`Price change threshold: ${(this.priceChangeThreshold * 100).toFixed(1)}%`, 'INFO');
+        this.log(`Price change threshold: ${(this.priceChangeThreshold * 100).toFixed(4)}% (${this.priceChangeThreshold})`, 'INFO');
         this.log(`Check interval: ${this.checkInterval / 1000} seconds`, 'INFO');
         this.log(`Minimum order size: $${this.minOrderSize}`, 'INFO');
+        if (this.maxUsdtToUse) {
+            this.log(`Maximum USDT to use: $${this.maxUsdtToUse}`, 'INFO');
+        }
         this.log('───────────────────────────────────────', 'INFO');
 
         this.isRunning = true;

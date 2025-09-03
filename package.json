@@ -5,11 +5,24 @@
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
+    "start:btc": "node -r dotenv/config bot.js dotenv_config_path=.env.btc",
+    "start:eth": "node -r dotenv/config bot.js dotenv_config_path=.env.eth",
+    "start:sol": "node -r dotenv/config bot.js dotenv_config_path=.env.sol",
+    "start:wlfi": "node -r dotenv/config bot.js dotenv_config_path=.env.wlfi",
     "dev": "node bot.js",
     "test": "node test-connection.js",
     "test:enhanced": "node test-enhanced.js",
     "history": "node view-transactions.js",
-    "watch": "node view-transactions.js --watch"
+    "watch": "node view-transactions.js --watch",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop sol-trading-bot",
+    "pm2:restart": "pm2 restart sol-trading-bot",
+    "pm2:status": "pm2 status",
+    "pm2:logs": "pm2 logs sol-trading-bot",
+    "pm2:logs:live": "pm2 logs sol-trading-bot --lines 50",
+    "pm2:delete": "pm2 delete sol-trading-bot",
+    "pm2:monitor": "pm2 monit",
+    "monitor": "node monitor.js"
   },
   "keywords": [
     "cryptocurrency",
