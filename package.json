@@ -1,0 +1,32 @@
+{
+  "name": "okx-crypto-trading-bot",
+  "version": "1.0.0",
+  "description": "A simple cryptocurrency trading bot for OKX exchange using BTC/USDT pair",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node bot.js",
+    "test": "node test-connection.js",
+    "test:enhanced": "node test-enhanced.js",
+    "history": "node view-transactions.js",
+    "watch": "node view-transactions.js --watch"
+  },
+  "keywords": [
+    "cryptocurrency",
+    "trading",
+    "bot",
+    "okx",
+    "bitcoin",
+    "automated-trading"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

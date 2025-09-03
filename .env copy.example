@@ -1,0 +1,17 @@
+# Environment Variables for OKX Trading Bot
+# Copy this file to .env and fill in your actual API credentials
+
+# OKX API Credentials (Get these from your OKX account API management)
+OKX_API_KEY=df566209-fa51-459d-a3f1-4e09e2971996
+OKX_SECRET_KEY=EC4DC1D73139EFF3F7E9BF5F50F462B9
+OKX_PASSPHRASE=trade-Manage-0320
+
+# Trading Configuration
+TRADING_SYMBOL=BTC-USDT
+PRICE_CHANGE_THRESHOLD=0.01
+CHECK_INTERVAL_SECONDS=30
+MIN_ORDER_SIZE=10
+
+# API Configuration
+OKX_BASE_URL=https://www.okx.com
+OKX_API_VERSION=v5
