@@ -7,11 +7,32 @@ const axios = require('axios');
  */
 class OKXClient {
     constructor(apiKey, secretKey, passphrase, baseUrl = 'https://www.okx.com') {
-        this.apiKey = apiKey;
-        this.secretKey = secretKey;
-        this.passphrase = passphrase;
-        this.baseUrl = baseUrl;
-        this.apiVersion = 'api/v5';
+        // Support both positional args and an options object
+        if (typeof apiKey === 'object' && apiKey !== null) {
+            const opts = apiKey;
+            this.apiKey = opts.apiKey || opts.key;
+            this.secretKey = opts.secretKey || opts.secret || opts.secret_key;
+            this.passphrase = opts.passphrase || opts.pass || opts.password;
+            this.baseUrl = opts.baseURL || opts.baseUrl || 'https://www.okx.com';
+            this.apiVersion = opts.apiVersion || 'api/v5';
+        } else {
+            this.apiKey = apiKey;
+            this.secretKey = secretKey;
+            this.passphrase = passphrase;
+            this.baseUrl = baseUrl;
+            this.apiVersion = 'api/v5';
+        }
+
+        // Basic validation to surface clearer errors early
+        if (!this.apiKey) {
+            throw new Error('OKXClient initialization error: apiKey is missing');
+        }
+        if (!this.secretKey) {
+            throw new Error('OKXClient initialization error: secretKey is missing');
+        }
+        if (!this.passphrase) {
+            throw new Error('OKXClient initialization error: passphrase is missing');
+        }
     }
 
     /**
@@ -136,6 +157,151 @@ class OKXClient {
 
         const data = await this.makeRequest('POST', '/trade/order', orderData);
         return data;
+    }
+
+    /**
+     * Get comprehensive market data including volume, 24h change, etc.
+     * @param {string} symbol - Trading pair
+     * @returns {Promise<Object|null>} Market data object
+     */
+    async getMarketData(symbol) {
+        try {
+            const data = await this.makeRequest('GET', `/market/ticker?instId=${symbol}`);
+            if (data && data.length > 0) {
+                const ticker = data[0];
+                return {
+                    symbol: ticker.instId,
+                    price: parseFloat(ticker.last),
+                    high24h: parseFloat(ticker.high24h),
+                    low24h: parseFloat(ticker.low24h),
+                    open24h: parseFloat(ticker.open24h),
+                    priceChange24h: parseFloat(ticker.last) - parseFloat(ticker.open24h),
+                    priceChangePercent24h: ((parseFloat(ticker.last) - parseFloat(ticker.open24h)) / parseFloat(ticker.open24h)) * 100,
+                    volume24h: parseFloat(ticker.vol24h),
+                    volumeQuote24h: parseFloat(ticker.volCcy24h),
+                    bid: parseFloat(ticker.bidPx),
+                    ask: parseFloat(ticker.askPx),
+                    spread: parseFloat(ticker.askPx) - parseFloat(ticker.bidPx),
+                    spreadPercent: ((parseFloat(ticker.askPx) - parseFloat(ticker.bidPx)) / parseFloat(ticker.last)) * 100,
+                    timestamp: parseInt(ticker.ts)
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching market data:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Get historical candlestick data for technical analysis
+     * @param {string} symbol - Trading pair
+     * @param {string} timeframe - '1m', '5m', '15m', '1H', '4H', '1D'
+     * @param {number} limit - Number of candles (max 300)
+     * @returns {Promise<Array|null>} Array of OHLCV data
+     */
+    async getCandlesticks(symbol, timeframe = '5m', limit = 100) {
+        try {
+            const data = await this.makeRequest('GET', `/market/candles?instId=${symbol}&bar=${timeframe}&limit=${limit}`);
+            if (data) {
+                return data.map(candle => ({
+                    timestamp: parseInt(candle[0]),
+                    open: parseFloat(candle[1]),
+                    high: parseFloat(candle[2]),
+                    low: parseFloat(candle[3]),
+                    close: parseFloat(candle[4]),
+                    volume: parseFloat(candle[5]),
+                    volumeQuote: parseFloat(candle[6])
+                }));
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching candlesticks:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Get order book depth
+     * @param {string} symbol - Trading pair
+     * @param {number} depth - Depth of order book (5, 10, 20, 50, 100, 400)
+     * @returns {Promise<Object|null>} Order book data
+     */
+    async getOrderBook(symbol, depth = 20) {
+        try {
+            const data = await this.makeRequest('GET', `/market/books?instId=${symbol}&sz=${depth}`);
+            if (data && data.length > 0) {
+                const book = data[0];
+                return {
+                    symbol: symbol,
+                    bids: book.bids.map(bid => ({
+                        price: parseFloat(bid[0]),
+                        size: parseFloat(bid[1])
+                    })),
+                    asks: book.asks.map(ask => ({
+                        price: parseFloat(ask[0]),
+                        size: parseFloat(ask[1])
+                    })),
+                    timestamp: parseInt(book.ts)
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching order book:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Get recent trades data
+     * @param {string} symbol - Trading pair
+     * @param {number} limit - Number of recent trades (max 500)
+     * @returns {Promise<Array|null>} Array of recent trades
+     */
+    async getRecentTrades(symbol, limit = 100) {
+        try {
+            const data = await this.makeRequest('GET', `/market/trades?instId=${symbol}&limit=${limit}`);
+            if (data) {
+                return data.map(trade => ({
+                    tradeId: trade.tradeId,
+                    price: parseFloat(trade.px),
+                    size: parseFloat(trade.sz),
+                    side: trade.side,
+                    timestamp: parseInt(trade.ts)
+                }));
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching recent trades:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Get instrument information including tick size, lot size, etc.
+     * @param {string} symbol - Trading pair
+     * @returns {Promise<Object|null>} Instrument details
+     */
+    async getInstrumentInfo(symbol) {
+        try {
+            const data = await this.makeRequest('GET', `/public/instruments?instType=SPOT&instId=${symbol}`);
+            if (data && data.length > 0) {
+                const instrument = data[0];
+                return {
+                    symbol: instrument.instId,
+                    baseCurrency: instrument.baseCcy,
+                    quoteCurrency: instrument.quoteCcy,
+                    tickSize: parseFloat(instrument.tickSz),
+                    lotSize: parseFloat(instrument.lotSz),
+                    minSize: parseFloat(instrument.minSz),
+                    state: instrument.state
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching instrument info:', error.message);
+            return null;
+        }
     }
 }
 
