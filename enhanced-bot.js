@@ -10,6 +10,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const OKXClient = require('./okx-client');
 const TechnicalAnalysis = require('./technical-analysis');
 const RiskManager = require('./risk-manager');
+const PositionTracker = require('./position-tracker');
 const fs = require('fs');
 
 class MomentumAnalysis {
@@ -238,6 +239,9 @@ class EnhancedCryptoTradingBot {
             minVolumeThreshold: parseFloat(process.env.MIN_VOLUME_THRESHOLD) || 1000000,
             maxSpreadPercentage: parseFloat(process.env.MAX_SPREAD_PERCENTAGE) || 0.001
         });
+
+        // Initialize position tracker for cost-basis tracking
+        this.positionTracker = new PositionTracker(this.symbol);
 
         // State variables
         this.lastPrice = null;
@@ -473,10 +477,21 @@ class EnhancedCryptoTradingBot {
                         'SUCCESS'
                     );
                     
-                    // Update last buy price if this was a buy order
-                    if (side === 'buy' && this.marketData.price) {
+                    // Update position tracker
+                    if (side === 'buy') {
+                        // Add buy position for cost-basis tracking
+                        this.positionTracker.addBuyPosition(this.marketData.price, amount);
+                        this.log(`📈 Position tracker: Added buy of ${amount} ${this.baseCurrency} at $${this.marketData.price.toFixed(4)}`, 'INFO');
+                        
+                        // Update last buy price (for backward compatibility)
                         this.lastBuyPrice = this.marketData.price;
                         this.log(`📌 Updated last buy price to: $${this.lastBuyPrice.toFixed(4)}`, 'INFO');
+                    } else if (side === 'sell') {
+                        // Remove sold position from tracking
+                        const soldValue = this.positionTracker.removeSoldPosition(amount, this.marketData.price);
+                        if (soldValue) {
+                            this.log(`📉 Position tracker: Sold ${amount} ${this.baseCurrency} at $${this.marketData.price.toFixed(4)}, realized P&L: $${soldValue.realized_pnl.toFixed(4)}`, 'SUCCESS');
+                        }
                     }
 
                     // Record trade for risk management
@@ -562,6 +577,53 @@ class EnhancedCryptoTradingBot {
             this.log(`💰 Balance: ${this.positions[this.baseCurrency].toFixed(6)} ${this.baseCurrency} | $${availableUsdt.toFixed(2)} USDT available`, 'INFO');
             this.log(`📊 Price change: ${(priceChangeFromLast * 100).toFixed(4)}% | Threshold: ±${(currentThreshold * 100).toFixed(4)}%`, 'INFO');
 
+            // Calculate and log target prices
+            const buyTargetPrice = currentPrice * (1 - currentThreshold);
+            const sellTargetPriceBasic = currentPrice * (1 + currentThreshold);
+            
+            // Get position tracker target price for sells (if we have positions)
+            let sellTargetPricePosition = null;
+            if (this.positions[this.baseCurrency] > 0) {
+                const profitableData = this.positionTracker.calculateProfitablePrice(currentThreshold);
+                if (profitableData && profitableData.minProfitablePrice) {
+                    sellTargetPricePosition = profitableData.minProfitablePrice;
+                }
+            }
+
+            // Log target prices with color coding and distance indicators
+            const buyDistance = ((currentPrice - buyTargetPrice) / buyTargetPrice * 100);
+            
+            // Safety check for distance calculations
+            if (buyTargetPrice && !isNaN(buyDistance)) {
+                this.log(`🎯 BUY Target: $${buyTargetPrice.toFixed(4)} (need -${buyDistance.toFixed(2)}% to trigger)`, buyDistance <= 5 ? 'WARNING' : 'INFO');
+            } else {
+                this.log(`🎯 BUY Target: calculation error - currentPrice: $${currentPrice}, threshold: ${currentThreshold}`, 'ERROR');
+            }
+            
+            if (this.positions[this.baseCurrency] > 0 && sellTargetPricePosition) {
+                const summary = this.positionTracker.getPositionSummary();
+                const sellDistance = ((sellTargetPricePosition - currentPrice) / currentPrice * 100);
+                
+                // Safety check for averageBuyPrice and sellDistance
+                if (summary && summary.averageBuyPrice && summary.averageBuyPrice > 0 && !isNaN(sellDistance)) {
+                    const currentProfit = ((currentPrice - summary.averageBuyPrice) / summary.averageBuyPrice * 100);
+                    this.log(`🎯 SELL Target: $${sellTargetPricePosition.toFixed(4)} (need +${sellDistance.toFixed(2)}% to trigger) | Current profit: ${currentProfit >= 0 ? '+' : ''}${currentProfit.toFixed(2)}%`, sellDistance <= 2 ? 'WARNING' : 'INFO');
+                } else if (!isNaN(sellDistance)) {
+                    this.log(`🎯 SELL Target: $${sellTargetPricePosition.toFixed(4)} (need +${sellDistance.toFixed(2)}% to trigger)`, sellDistance <= 2 ? 'WARNING' : 'INFO');
+                } else {
+                    this.log(`🎯 SELL Target: calculation error - sellPrice: $${sellTargetPricePosition}, currentPrice: $${currentPrice}`, 'ERROR');
+                }
+            } else if (this.positions[this.baseCurrency] > 0) {
+                const sellDistance = ((sellTargetPriceBasic - currentPrice) / currentPrice * 100);
+                if (!isNaN(sellDistance)) {
+                    this.log(`🎯 SELL Target: $${sellTargetPriceBasic.toFixed(4)} (need +${sellDistance.toFixed(2)}% to trigger)`, sellDistance <= 2 ? 'WARNING' : 'INFO');
+                } else {
+                    this.log(`🎯 SELL Target: calculation error - sellPrice: $${sellTargetPriceBasic}, currentPrice: $${currentPrice}`, 'ERROR');
+                }
+            } else {
+                this.log(`🎯 SELL Target: $${sellTargetPriceBasic.toFixed(4)} (no position to sell)`, 'INFO');
+            }
+
             // Check for stop loss/take profit on existing positions
             if (this.enableStopLoss && this.lastBuyPrice && this.positions[this.baseCurrency] > 0) {
                 const stopLoss = this.riskManager.checkStopLoss(this.symbol, currentPrice, this.lastBuyPrice, 'buy');
@@ -613,28 +675,61 @@ class EnhancedCryptoTradingBot {
                 
                 if (buyAmount >= this.minOrderSize) {
                     this.log(`🔻 BUY SIGNAL: ${buyReason.join(' + ')}`, 'WARNING');
+                    this.log(`💵 BUYING: $${buyAmount} USDT at $${currentPrice.toFixed(4)} (target was $${buyTargetPrice.toFixed(4)})`, 'SUCCESS');
                     await this.placeIntelligentOrder('buy', buyAmount, buyReason.join(' + '));
                 } else {
                     this.log(`💸 Buy amount $${buyAmount} is below minimum order size $${this.minOrderSize}`, 'WARNING');
                 }
             }
-            // Sell logic with enhanced intelligence
-            else if (this.lastBuyPrice && this.positions[this.baseCurrency] > 0) {
-                const priceChangeFromBuy = (currentPrice - this.lastBuyPrice) / this.lastBuyPrice;
-                
-                const shouldSellBasic = priceChangeFromBuy >= currentThreshold;
+            // Sell logic with enhanced intelligence using position tracking
+            else if (this.positions[this.baseCurrency] > 0) {
+                // Use position tracker to determine if we should sell
+                const sellDecision = this.positionTracker.shouldSell(currentPrice, currentThreshold);
                 const shouldSellTechnical = technicalSignal && (technicalSignal.signal === 'SELL' || technicalSignal.signal === 'STRONG_SELL') && technicalSignal.confidence > 60;
                 
-                if (shouldSellBasic || shouldSellTechnical) {
+                if (sellDecision.shouldSell || shouldSellTechnical) {
                     let sellReason = [];
-                    if (shouldSellBasic) {
-                        sellReason.push(`Price rise: ${(priceChangeFromBuy * 100).toFixed(4)}%`);
+                    if (sellDecision.shouldSell) {
+                        const summary = this.positionTracker.getPositionSummary(currentPrice);
+                        if (summary && summary.averageBuyPrice && summary.averageBuyPrice > 0) {
+                            const profitPct = ((currentPrice - summary.averageBuyPrice) / summary.averageBuyPrice * 100);
+                            sellReason.push(`Profitable sale: avg cost $${summary.averageBuyPrice.toFixed(4)}, profit ${profitPct.toFixed(2)}%`);
+                        } else {
+                            sellReason.push(`Profitable sale opportunity detected`);
+                        }
                     }
                     if (shouldSellTechnical) {
                         sellReason.push(`Technical signal: ${technicalSignal.signal} (${technicalSignal.confidence.toFixed(1)}%)`);
                     }
 
-                    await this.sellAllPosition(sellReason.join(' + '));
+                    // Only sell if position tracker confirms it's profitable OR strong technical signal
+                    if (sellDecision.shouldSell || (shouldSellTechnical && technicalSignal.confidence > 80)) {
+                        const summary = this.positionTracker.getPositionSummary();
+                        const profitableData = this.positionTracker.calculateProfitablePrice(currentThreshold);
+                        const targetPrice = profitableData ? profitableData.minProfitablePrice : sellTargetPriceBasic;
+                        
+                        this.log(`📈 SELL SIGNAL: ${sellReason.join(' + ')}`, 'WARNING');
+                        
+                        if (summary && summary.totalQuantity && summary.averageBuyPrice && summary.averageBuyPrice > 0) {
+                            this.log(`💰 SELLING: ${summary.totalQuantity.toFixed(4)} ${this.baseCurrency} at $${currentPrice.toFixed(4)} (target was $${targetPrice.toFixed(4)}, avg cost: $${summary.averageBuyPrice.toFixed(4)})`, 'SUCCESS');
+                        } else {
+                            this.log(`💰 SELLING: ${this.positions[this.baseCurrency].toFixed(4)} ${this.baseCurrency} at $${currentPrice.toFixed(4)} (target was $${targetPrice.toFixed(4)})`, 'SUCCESS');
+                        }
+                        
+                        await this.sellAllPosition(sellReason.join(' + '));
+                    } else {
+                        const summary = this.positionTracker.getPositionSummary();
+                        const profitableData = this.positionTracker.calculateProfitablePrice(currentThreshold);
+                        const nextTargetPrice = profitableData ? profitableData.minProfitablePrice : sellTargetPriceBasic;
+                        
+                        this.log(`🔒 HODL Mode: Position not profitable yet`, 'INFO');
+                        
+                        if (summary && summary.averageBuyPrice && summary.averageBuyPrice > 0) {
+                            this.log(`📊 Current: $${currentPrice.toFixed(4)} | Avg Cost: $${summary.averageBuyPrice.toFixed(4)} | Target: $${nextTargetPrice.toFixed(4)} (need +${((nextTargetPrice - currentPrice) / currentPrice * 100).toFixed(2)}%)`, 'INFO');
+                        } else {
+                            this.log(`📊 Current: $${currentPrice.toFixed(4)} | Target: $${nextTargetPrice.toFixed(4)} (need +${((nextTargetPrice - currentPrice) / currentPrice * 100).toFixed(2)}%)`, 'INFO');
+                        }
+                    }
                 }
             }
 
@@ -671,7 +766,7 @@ class EnhancedCryptoTradingBot {
         sellAmount = Math.min(sellAmount, availableBalance);
         
         if (sellAmount >= minimumOrderAmount && sellAmount <= availableBalance) {
-            this.log(`📈 SELL SIGNAL: ${reason}`, 'WARNING');
+            // Don't log "SELL SIGNAL" here as it's already logged in the calling method
             await this.placeIntelligentOrder('sell', sellAmount, reason);
         } else {
             this.log(`⚠️ Cannot sell: calculated amount ${sellAmount} ${this.baseCurrency} is below minimum ${minimumOrderAmount}`, 'WARNING');

@@ -1,0 +1,28 @@
+{
+  "symbol": "SOL-USDT",
+  "lastUpdated": "2025-09-05T04:18:55.027Z",
+  "positions": [
+    {
+      "id": "1757045935025_ar5uco89x",
+      "buyPrice": 100,
+      "quantity": 2,
+      "orderId": null,
+      "timestamp": "2025-09-05T04:18:55.025Z",
+      "fees": 0.2,
+      "status": "open",
+      "breakEvenPrice": 100.2,
+      "totalCost": 200.2
+    },
+    {
+      "id": "1757045935027_o8dma59xj",
+      "buyPrice": 110,
+      "quantity": 3,
+      "orderId": null,
+      "timestamp": "2025-09-05T04:18:55.027Z",
+      "fees": 0.33,
+      "status": "open",
+      "breakEvenPrice": 110.22,
+      "totalCost": 330.33
+    }
+  ]
+}

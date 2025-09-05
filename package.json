@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node bot.js",
     "start:enhanced": "node enhanced-bot.js",
+    "start:interactive": "node interactive-bot.js",
     "start:background": "pm2 start enhanced-bot.js --name okx-enhanced-bot",
     "start:basic": "node bot.js",
     "start:btc": "node -r dotenv/config bot.js dotenv_config_path=.env.btc",
@@ -14,6 +15,11 @@
     "start:wlfi": "node -r dotenv/config bot.js dotenv_config_path=.env.wlfi",
     "enhanced:btc": "node -r dotenv/config enhanced-bot.js dotenv_config_path=.env.btc",
     "enhanced:sol": "node -r dotenv/config enhanced-bot.js",
+    "interactive": "node interactive-bot.js",
+    "interactive:setup": "node interactive-setup.js",
+    "demo:interactive": "node demo-interactive.js",
+    "demo:setup": "node demo-interactive-setup.js",
+    "demo:targets": "node demo-target-logging.js",
     "dev": "node bot.js",
     "stop": "pm2 stop okx-enhanced-bot",
     "restart": "pm2 restart okx-enhanced-bot",
@@ -52,8 +58,10 @@
   "license": "MIT",
   "dependencies": {
     "axios": "^1.6.0",
+    "chalk": "^4.1.2",
     "crypto": "^1.0.1",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "inquirer": "^8.2.4"
   },
   "engines": {
     "node": ">=14.0.0"
