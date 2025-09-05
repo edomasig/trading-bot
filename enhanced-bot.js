@@ -12,6 +12,161 @@ const TechnicalAnalysis = require('./technical-analysis');
 const RiskManager = require('./risk-manager');
 const fs = require('fs');
 
+class MomentumAnalysis {
+    constructor() {
+        this.priceHistory = [];
+        this.momentumPeriod = 5;
+    }
+
+    calculateMomentum(prices) {
+        if (prices.length < this.momentumPeriod + 1) return 0;
+        
+        const recent = prices.slice(-this.momentumPeriod);
+        const older = prices.slice(-this.momentumPeriod * 2, -this.momentumPeriod);
+        
+        const recentAvg = recent.reduce((a, b) => a + b) / recent.length;
+        const olderAvg = older.reduce((a, b) => a + b) / older.length;
+        
+        return ((recentAvg - olderAvg) / olderAvg) * 100;
+    }
+
+    getMomentumSignal(prices) {
+        const momentum = this.calculateMomentum(prices);
+        
+        if (momentum > 0.5) return 'STRONG_BULLISH';
+        if (momentum > 0.2) return 'BULLISH';
+        if (momentum < -0.5) return 'STRONG_BEARISH';
+        if (momentum < -0.2) return 'BEARISH';
+        return 'NEUTRAL';
+    }
+}
+
+class SentimentAnalysis {
+    constructor() {
+        this.volumeHistory = [];
+        this.priceHistory = [];
+    }
+
+    updateData(volume, price) {
+        this.volumeHistory.push(volume);
+        this.priceHistory.push(price);
+        
+        if (this.volumeHistory.length > 20) {
+            this.volumeHistory.shift();
+            this.priceHistory.shift();
+        }
+    }
+
+    calculateSentiment() {
+        if (this.volumeHistory.length < 10) return 'NEUTRAL';
+        
+        const avgVolume = this.volumeHistory.reduce((a, b) => a + b) / this.volumeHistory.length;
+        const currentVolume = this.volumeHistory[this.volumeHistory.length - 1];
+        const volumeRatio = currentVolume / avgVolume;
+        
+        const priceChange = (this.priceHistory[this.priceHistory.length - 1] - this.priceHistory[0]) / this.priceHistory[0];
+        
+        if (volumeRatio > 1.5 && priceChange > 0.01) return 'VERY_BULLISH';
+        if (volumeRatio > 1.2 && priceChange > 0.005) return 'BULLISH';
+        if (volumeRatio < 0.7 && priceChange < -0.01) return 'VERY_BEARISH';
+        if (volumeRatio < 0.8 && priceChange < -0.005) return 'BEARISH';
+        
+        return 'NEUTRAL';
+    }
+}
+
+class PatternRecognition {
+    constructor() {
+        this.priceHistory = [];
+    }
+
+    updatePrice(price) {
+        this.priceHistory.push(price);
+        if (this.priceHistory.length > 50) {
+            this.priceHistory.shift();
+        }
+    }
+
+    detectDoubleBottom() {
+        if (this.priceHistory.length < 20) return false;
+        
+        const recent = this.priceHistory.slice(-20);
+        const min1 = Math.min(...recent.slice(0, 10));
+        const min2 = Math.min(...recent.slice(10));
+        const max = Math.max(...recent);
+        
+        return Math.abs(min1 - min2) / min1 < 0.02 && recent[recent.length - 1] > (min1 + min2) / 2;
+    }
+
+    detectHeadAndShoulders() {
+        if (this.priceHistory.length < 30) return false;
+        
+        const recent = this.priceHistory.slice(-30);
+        const peaks = this.findPeaks(recent);
+        
+        if (peaks.length >= 3) {
+            const [left, head, right] = peaks.slice(-3);
+            return head > left && head > right && Math.abs(left - right) / left < 0.05;
+        }
+        
+        return false;
+    }
+
+    findPeaks(prices) {
+        const peaks = [];
+        for (let i = 1; i < prices.length - 1; i++) {
+            if (prices[i] > prices[i-1] && prices[i] > prices[i+1]) {
+                peaks.push(prices[i]);
+            }
+        }
+        return peaks;
+    }
+
+    getPatternSignal() {
+        if (this.detectDoubleBottom()) return 'DOUBLE_BOTTOM_BUY';
+        if (this.detectHeadAndShoulders()) return 'HEAD_SHOULDERS_SELL';
+        return 'NO_PATTERN';
+    }
+}
+
+class DynamicRiskManager {
+    constructor() {
+        this.volatilityHistory = [];
+        this.basePositionSize = 0.9;
+    }
+
+    updateVolatility(returns) {
+        this.volatilityHistory.push(returns);
+        if (this.volatilityHistory.length > 20) {
+            this.volatilityHistory.shift();
+        }
+    }
+
+    calculateVolatility() {
+        if (this.volatilityHistory.length < 10) return 0.02;
+        
+        const avgReturn = this.volatilityHistory.reduce((a, b) => a + b) / this.volatilityHistory.length;
+        const variance = this.volatilityHistory.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / this.volatilityHistory.length;
+        return Math.sqrt(variance);
+    }
+
+    getDynamicPositionSize() {
+        const volatility = this.calculateVolatility();
+        
+        if (volatility > 0.03) return this.basePositionSize * 0.6; // High volatility - smaller positions
+        if (volatility > 0.02) return this.basePositionSize * 0.8; // Medium volatility
+        return this.basePositionSize; // Low volatility - full size
+    }
+
+    getDynamicThreshold(baseThreshold) {
+        const volatility = this.calculateVolatility();
+        
+        if (volatility > 0.03) return baseThreshold * 1.5; // High volatility - wider threshold
+        if (volatility > 0.02) return baseThreshold * 1.2; // Medium volatility
+        return baseThreshold * 0.8; // Low volatility - tighter threshold
+    }
+}
+
 class EnhancedCryptoTradingBot {
     constructor() {
         // Debug: Check if environment variables are loaded
@@ -49,6 +204,18 @@ class EnhancedCryptoTradingBot {
         this.enableStopLoss = process.env.ENABLE_STOP_LOSS === 'true';
         this.enableMarketDataAnalysis = process.env.ENABLE_MARKET_DATA_ANALYSIS === 'true';
         this.enableOrderBookAnalysis = process.env.ENABLE_ORDER_BOOK_ANALYSIS === 'true';
+
+        // New intelligent components
+        this.momentumAnalysis = new MomentumAnalysis();
+        this.sentimentAnalysis = new SentimentAnalysis();
+        this.patternRecognition = new PatternRecognition();
+        this.dynamicRiskManager = new DynamicRiskManager();
+        
+        // Enhanced configuration
+        this.enableMomentumAnalysis = process.env.ENABLE_MOMENTUM_ANALYSIS === 'true';
+        this.enableSentimentAnalysis = process.env.ENABLE_SENTIMENT_ANALYSIS === 'true';
+        this.enablePatternRecognition = process.env.ENABLE_PATTERN_RECOGNITION === 'true';
+        this.enableDynamicRisk = process.env.ENABLE_DYNAMIC_THRESHOLD === 'true';
 
         // Initialize modules
         this.technicalAnalysis = new TechnicalAnalysis({
@@ -121,34 +288,91 @@ class EnhancedCryptoTradingBot {
      */
     async getEnhancedMarketData() {
         try {
-            // Get basic market data
-            this.marketData = await this.client.getMarketData(this.symbol);
-            if (!this.marketData) {
-                throw new Error('Failed to fetch market data');
+            // Use the OKXClient methods that exist in okx-client.js
+            const [marketData, candlesticks, orderBook] = await Promise.all([
+                this.client.getMarketData(this.symbol),
+                this.client.getCandlesticks(this.symbol, '1m', 100),
+                this.client.getOrderBook(this.symbol, 20)
+            ]);
+
+            // Populate bot state so other methods can read latest data
+            this.marketData = marketData || null;
+            this.candleData = candlesticks || [];
+            this.orderBookData = orderBook || null;
+
+            // Update analysis components using the marketData shape returned by getMarketData()
+            if (marketData && marketData.price) {
+                this.sentimentAnalysis.updateData(parseFloat(marketData.volume24h || 0), parseFloat(marketData.price));
+                this.patternRecognition.updatePrice(parseFloat(marketData.price));
+
+                // Calculate returns for volatility
+                if (this.lastPrice) {
+                    const return_pct = (parseFloat(marketData.price) - this.lastPrice) / this.lastPrice;
+                    this.dynamicRiskManager.updateVolatility(return_pct);
+                }
             }
 
-            // Get candlestick data for technical analysis
-            if (this.enableTechnicalAnalysis) {
-                this.candleData = await this.client.getCandlesticks(
-                    this.symbol, 
-                    this.timeframes.short, 
-                    this.candleHistoryLimit
-                );
-            }
+            const momentumInput = this.candleData.map(c => (typeof c.close === 'number' ? c.close : parseFloat(c.close)));
 
-            // Get order book data if enabled
-            if (this.enableOrderBookAnalysis) {
-                this.orderBookData = await this.client.getOrderBook(
-                    this.symbol, 
-                    parseInt(process.env.ORDER_BOOK_DEPTH) || 20
-                );
-            }
-
-            return true;
+            return {
+                ticker: marketData,
+                candles: this.candleData,
+                orderBook: this.orderBookData,
+                momentum: this.enableMomentumAnalysis ? this.momentumAnalysis.getMomentumSignal(momentumInput || []) : 'DISABLED',
+                sentiment: this.enableSentimentAnalysis ? this.sentimentAnalysis.calculateSentiment() : 'DISABLED',
+                pattern: this.enablePatternRecognition ? this.patternRecognition.getPatternSignal() : 'DISABLED'
+            };
         } catch (error) {
             this.log(`Error fetching enhanced market data: ${error.message}`, 'ERROR');
-            return false;
+            return null;
         }
+    }
+
+    getIntelligentSignal(marketData) {
+        const signals = {
+            technical: this.getTechnicalSignal(),
+            momentum: marketData.momentum,
+            sentiment: marketData.sentiment,
+            pattern: marketData.pattern
+        };
+
+        // Combine signals with weights
+        const weights = {
+            technical: 0.4,
+            momentum: 0.2,
+            sentiment: 0.2,
+            pattern: 0.2
+        };
+
+        let bullishScore = 0;
+        let bearishScore = 0;
+
+        // Technical signal
+        if (signals.technical === 'BUY') bullishScore += weights.technical;
+        else if (signals.technical === 'SELL') bearishScore += weights.technical;
+
+        // Momentum signal
+        if (signals.momentum === 'STRONG_BULLISH') bullishScore += weights.momentum;
+        else if (signals.momentum === 'STRONG_BEARISH') bearishScore += weights.momentum;
+        else if (signals.momentum === 'BULLISH') bullishScore += weights.momentum * 0.7;
+        else if (signals.momentum === 'BEARISH') bearishScore += weights.momentum * 0.7;
+
+        // Sentiment signal
+        if (signals.sentiment === 'VERY_BULLISH') bullishScore += weights.sentiment;
+        else if (signals.sentiment === 'VERY_BEARISH') bearishScore += weights.sentiment;
+        else if (signals.sentiment === 'BULLISH') bullishScore += weights.sentiment * 0.8;
+        else if (signals.sentiment === 'BEARISH') bearishScore += weights.sentiment * 0.8;
+
+        // Pattern signal
+        if (signals.pattern === 'DOUBLE_BOTTOM_BUY') bullishScore += weights.pattern;
+        else if (signals.pattern === 'HEAD_SHOULDERS_SELL') bearishScore += weights.pattern;
+
+        const confidence = Math.max(bullishScore, bearishScore);
+        
+        if (bullishScore > bearishScore && confidence > 0.6) return { signal: 'BUY', confidence };
+        if (bearishScore > bullishScore && confidence > 0.6) return { signal: 'SELL', confidence };
+        
+        return { signal: 'HOLD', confidence };
     }
 
     /**
