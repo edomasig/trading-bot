@@ -20,6 +20,7 @@
     "demo:interactive": "node demo-interactive.js",
     "demo:setup": "node demo-interactive-setup.js",
     "demo:targets": "node demo-target-logging.js",
+    "demo:transactions": "node test-transaction-logging.js",
     "dev": "node bot.js",
     "stop": "pm2 stop okx-enhanced-bot",
     "restart": "pm2 restart okx-enhanced-bot",
@@ -44,7 +45,11 @@
     "pm2:delete": "pm2 delete sol-trading-bot-enhanced",
     "pm2:delete:all": "pm2 delete all",
     "pm2:monitor": "pm2 monit",
-    "monitor": "node monitor.js"
+    "monitor": "node monitor.js",
+    "logs:transactions": "tail -f logs/trades-only.log",
+    "logs:transactions:json": "tail -f logs/transactions.log",
+    "logs:transactions:all": "type logs\\trades-only.log",
+    "logs:transactions:watch": "Get-Content logs\\trades-only.log -Wait"
   },
   "keywords": [
     "cryptocurrency",

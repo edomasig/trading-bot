@@ -1,0 +1,17 @@
+{
+  "symbol": "SOL-USDT",
+  "lastUpdated": "2025-09-05T09:02:03.789Z",
+  "positions": [
+    {
+      "id": "1757062923789_vy8dneqyu",
+      "buyPrice": 206.29,
+      "quantity": 36,
+      "orderId": null,
+      "timestamp": "2025-09-05T09:02:03.789Z",
+      "fees": 7.4264399999999995,
+      "status": "open",
+      "breakEvenPrice": 206.70257999999998,
+      "totalCost": 7433.86644
+    }
+  ]
+}

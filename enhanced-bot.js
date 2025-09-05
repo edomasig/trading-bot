@@ -12,6 +12,7 @@ const TechnicalAnalysis = require('./technical-analysis');
 const RiskManager = require('./risk-manager');
 const PositionTracker = require('./position-tracker');
 const fs = require('fs');
+const fsPromises = require('fs').promises;
 
 class MomentumAnalysis {
     constructor() {
@@ -243,6 +244,11 @@ class EnhancedCryptoTradingBot {
         // Initialize position tracker for cost-basis tracking
         this.positionTracker = new PositionTracker(this.symbol);
 
+        // Transaction logging setup
+        this.transactionLogFile = path.join(__dirname, 'logs', 'transactions.log');
+        this.tradeLogFile = path.join(__dirname, 'logs', 'trades-only.log');
+        this.ensureLogDirectory();
+
         // State variables
         this.lastPrice = null;
         this.lastBuyPrice = null;
@@ -267,6 +273,52 @@ class EnhancedCryptoTradingBot {
         console.log(`🧠 Technical Analysis: ${this.enableTechnicalAnalysis ? 'ON' : 'OFF'}`);
         console.log(`🛡️ Risk Management: ${this.enableRiskManagement ? 'ON' : 'OFF'}`);
         console.log(`📈 Market Data Analysis: ${this.enableMarketDataAnalysis ? 'ON' : 'OFF'}`);
+    }
+
+    /**
+     * Ensure logs directory exists
+     */
+    async ensureLogDirectory() {
+        try {
+            await fsPromises.mkdir(path.join(__dirname, 'logs'), { recursive: true });
+        } catch (error) {
+            // Directory already exists or other error, continue silently
+        }
+    }
+
+    /**
+     * Log successful transactions to dedicated files
+     */
+    async logTransaction(type, data, isStopLoss = false) {
+        const timestamp = new Date().toISOString();
+        
+        // Determine transaction type with stop loss indicator
+        const transactionType = isStopLoss ? `${type}_STOP_LOSS` : type;
+        const emoji = type === 'BUY' ? '📈' : (isStopLoss ? '🛑' : '📉');
+        const typeLabel = isStopLoss ? `${emoji} ${type} (STOP LOSS)` : `${emoji} ${type}`;
+        
+        const logEntry = {
+            timestamp,
+            type: transactionType,
+            isStopLoss,
+            ...data
+        };
+        
+        // JSON format for data analysis
+        const jsonLogLine = `${timestamp} | ${transactionType} | ${JSON.stringify(data)}\n`;
+        
+        // Human readable format
+        const humanReadable = `${timestamp} | ${typeLabel} | Price: $${data.price} | Amount: ${data.amount} | Value: $${data.value}${data.profit ? ` | Profit: ${data.profit}` : ''}${isStopLoss ? ' | ⚠️ TRIGGERED BY STOP LOSS' : ''}\n`;
+        
+        try {
+            // Write to both JSON format and human-readable format
+            await fsPromises.appendFile(this.transactionLogFile, jsonLogLine);
+            await fsPromises.appendFile(this.tradeLogFile, humanReadable);
+            
+            console.log(`📝 Transaction logged: ${typeLabel} at $${data.price}`);
+        } catch (error) {
+            console.error('❌ Failed to write transaction log:', error);
+        }
     }
 
     /**
@@ -468,20 +520,34 @@ class EnhancedCryptoTradingBot {
                 if (order.sCode === '0') {
                     this.log(`✅ ${side.toUpperCase()} order placed successfully! Order ID: ${order.ordId}`, 'SUCCESS');
                     
-                    // Log transaction to file
-                    this.logTransaction(
-                        side.toUpperCase(),
-                        amount,
-                        this.marketData.price,
-                        order.ordId,
-                        'SUCCESS'
-                    );
+                    // Determine if this is a stop loss transaction
+                    const isStopLoss = reason && (reason.toLowerCase().includes('stop loss') || reason.toLowerCase().includes('stop-loss'));
                     
-                    // Update position tracker
+                    // Update position tracker first to get profit calculations
+                    let transactionData = {
+                        price: this.marketData.price.toFixed(4),
+                        orderId: order.ordId
+                    };
+                    
                     if (side === 'buy') {
                         // Add buy position for cost-basis tracking
                         this.positionTracker.addBuyPosition(this.marketData.price, amount);
                         this.log(`📈 Position tracker: Added buy of ${amount} ${this.baseCurrency} at $${this.marketData.price.toFixed(4)}`, 'INFO');
+                        
+                        // Calculate buy transaction data
+                        const usdtValue = amount; // For buy orders, amount is in USDT
+                        const solReceived = usdtValue / this.marketData.price;
+                        
+                        transactionData = {
+                            ...transactionData,
+                            amount: `${solReceived.toFixed(6)} SOL`,
+                            value: `$${usdtValue.toFixed(2)}`,
+                            usdtSpent: usdtValue,
+                            solReceived: solReceived
+                        };
+                        
+                        // Enhanced transaction logging for BUY
+                        await this.logTransaction('BUY', transactionData, isStopLoss);
                         
                         // Update last buy price (for backward compatibility)
                         this.lastBuyPrice = this.marketData.price;
@@ -489,9 +555,40 @@ class EnhancedCryptoTradingBot {
                     } else if (side === 'sell') {
                         // Remove sold position from tracking
                         const soldValue = this.positionTracker.removeSoldPosition(amount, this.marketData.price);
-                        if (soldValue) {
+                        
+                        // Get position summary for profit calculation
+                        const summary = this.positionTracker.getPositionSummary();
+                        const totalValue = amount * this.marketData.price;
+                        
+                        let profitData = {};
+                        if (soldValue && soldValue.realized_pnl !== undefined) {
+                            profitData = {
+                                profit: `${soldValue.profit_percentage ? soldValue.profit_percentage.toFixed(2) : 'N/A'}%`,
+                                profitUSD: `$${soldValue.realized_pnl.toFixed(2)}`,
+                                avgCost: `$${soldValue.avg_buy_price ? soldValue.avg_buy_price.toFixed(4) : 'N/A'}`
+                            };
                             this.log(`📉 Position tracker: Sold ${amount} ${this.baseCurrency} at $${this.marketData.price.toFixed(4)}, realized P&L: $${soldValue.realized_pnl.toFixed(4)}`, 'SUCCESS');
+                        } else if (summary && summary.averageBuyPrice && summary.averageBuyPrice > 0) {
+                            const profit = ((this.marketData.price - summary.averageBuyPrice) / summary.averageBuyPrice) * 100;
+                            const profitUSD = (this.marketData.price - summary.averageBuyPrice) * amount;
+                            profitData = {
+                                profit: `${profit.toFixed(2)}%`,
+                                profitUSD: `$${profitUSD.toFixed(2)}`,
+                                avgCost: `$${summary.averageBuyPrice.toFixed(4)}`
+                            };
                         }
+                        
+                        transactionData = {
+                            ...transactionData,
+                            amount: `${amount.toFixed(6)} SOL`,
+                            value: `$${totalValue.toFixed(2)}`,
+                            solSold: amount,
+                            usdtReceived: totalValue,
+                            ...profitData
+                        };
+                        
+                        // Enhanced transaction logging for SELL
+                        await this.logTransaction('SELL', transactionData, isStopLoss);
                     }
 
                     // Record trade for risk management
