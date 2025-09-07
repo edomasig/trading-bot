@@ -1,17 +1,127 @@
 {
-  "symbol": "SOL-USDT",
-  "lastUpdated": "2025-09-05T09:02:03.789Z",
+  "symbol": "OKB-USDT",
+  "lastUpdated": "2025-09-07T09:41:54.454Z",
   "positions": [
     {
-      "id": "1757062923789_vy8dneqyu",
-      "buyPrice": 206.29,
-      "quantity": 36,
+      "id": "1757231272615_b63azjyi1",
+      "buyPrice": 207.55,
+      "quantity": 27.441,
       "orderId": null,
-      "timestamp": "2025-09-05T09:02:03.789Z",
-      "fees": 7.4264399999999995,
+      "timestamp": "2025-09-07T07:47:52.615Z",
+      "fees": 6.018950000000001,
       "status": "open",
-      "breakEvenPrice": 206.70257999999998,
-      "totalCost": 7433.86644
+      "breakEvenPrice": 207.9651,
+      "totalCost": 6024.96895
+    },
+    {
+      "id": "1757234345058_l2g6beeyp",
+      "buyPrice": 205.35,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T08:39:05.058Z",
+      "fees": 5.95515,
+      "status": "open",
+      "breakEvenPrice": 205.76069999999999,
+      "totalCost": 5961.105149999999
+    },
+    {
+      "id": "1757234445094_yh1t4j2q5",
+      "buyPrice": 205.32,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T08:40:45.094Z",
+      "fees": 5.95428,
+      "status": "open",
+      "breakEvenPrice": 205.73064,
+      "totalCost": 5960.23428
+    },
+    {
+      "id": "1757234545227_oc0b6scqf",
+      "buyPrice": 205.31,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T08:42:25.227Z",
+      "fees": 5.95399,
+      "status": "open",
+      "breakEvenPrice": 205.72062,
+      "totalCost": 5959.94399
+    },
+    {
+      "id": "1757235422297_9cl92pj89",
+      "buyPrice": 204.22,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T08:57:02.297Z",
+      "fees": 5.92238,
+      "status": "open",
+      "breakEvenPrice": 204.62844,
+      "totalCost": 5928.30238
+    },
+    {
+      "id": "1757237834194_m6q8u3xwn",
+      "buyPrice": 202.56,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T09:37:14.194Z",
+      "fees": 5.8742399999999995,
+      "status": "open",
+      "breakEvenPrice": 202.96512,
+      "totalCost": 5880.11424
+    },
+    {
+      "id": "1757237884252_lfchvfdal",
+      "buyPrice": 202.42,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T09:38:04.252Z",
+      "fees": 5.8701799999999995,
+      "status": "open",
+      "breakEvenPrice": 202.82484,
+      "totalCost": 5876.050179999999
+    },
+    {
+      "id": "1757237904229_075z91bit",
+      "buyPrice": 202.45,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T09:38:24.229Z",
+      "fees": 5.871049999999999,
+      "status": "open",
+      "breakEvenPrice": 202.8549,
+      "totalCost": 5876.921049999999
+    },
+    {
+      "id": "1757237944295_65aa2tik9",
+      "buyPrice": 202.47,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T09:39:04.295Z",
+      "fees": 5.871630000000001,
+      "status": "open",
+      "breakEvenPrice": 202.87494,
+      "totalCost": 5877.50163
+    },
+    {
+      "id": "1757238014333_zt0sg27pz",
+      "buyPrice": 202.48,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T09:40:14.333Z",
+      "fees": 5.87192,
+      "status": "open",
+      "breakEvenPrice": 202.88495999999998,
+      "totalCost": 5877.79192
+    },
+    {
+      "id": "1757238104425_orn4qvztk",
+      "buyPrice": 202.43,
+      "quantity": 29,
+      "orderId": null,
+      "timestamp": "2025-09-07T09:41:44.425Z",
+      "fees": 5.87047,
+      "status": "open",
+      "breakEvenPrice": 202.83486000000002,
+      "totalCost": 5876.34047
     }
   ]
 }

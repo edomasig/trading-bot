@@ -18,6 +18,22 @@ module.exports = {
     merge_logs: true,
     time: true
   }, {
+    name: 'sol-trading-bot-enhanced-buycurrent',
+    script: 'enhanced-bot.js',
+    args: '--buy-current-price',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    restart_delay: 5000,
+    env_file: '.env',
+    log_file: './logs/enhanced-buycurrent-combined.log',
+    out_file: './logs/enhanced-buycurrent-out.log',
+    error_file: './logs/enhanced-buycurrent-error.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    merge_logs: true,
+    time: true
+  }, {
     name: 'sol-trading-bot-basic',
     script: 'bot.js',
     instances: 1,
