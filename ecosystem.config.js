@@ -58,5 +58,29 @@ module.exports = {
     log_file: './logs/pm2-test.log',
     out_file: './logs/pm2-test-out.log',
     error_file: './logs/pm2-test-error.log'
+  }, {
+    name: 'okx-live-trading-bot',
+    script: 'enhanced-bot.js',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '500M',
+    min_uptime: '30s',
+    max_restarts: 3,
+    restart_delay: 15000,
+    env_file: '.env',
+    log_file: './logs/live-trading-combined.log',
+    out_file: './logs/live-trading-out.log',
+    error_file: './logs/live-trading-error.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    merge_logs: true,
+    time: true,
+    kill_timeout: 5000,
+    exec_mode: 'fork',
+    combine_logs: true,
+    env: {
+      NODE_ENV: 'production',
+      TRADING_MODE: 'live'
+    }
   }]
 };

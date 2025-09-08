@@ -70,6 +70,11 @@ class OKXClient {
             'Content-Type': 'application/json'
         };
 
+        // Add demo trading header if in demo mode
+        if (process.env.OKX_DEMO_MODE === 'true') {
+            headers['x-simulated-trading'] = '1';
+        }
+
         const config = {
             method,
             url: `${this.baseUrl}${requestPath}`,

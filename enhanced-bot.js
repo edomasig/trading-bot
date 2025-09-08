@@ -270,7 +270,7 @@ class EnhancedTradingBot {
         this.fixedBuyTarget = null;
         this.fixedSellTarget = null;
         this.lastTradePrice = null;
-        this.useFixedTargets = process.env.ENABLE_ADAPTIVE_THRESHOLD === 'false';
+        this.useFixedTargets = process.env.ENABLE_FIXED_TARGETS === 'true';
         this.enableFixedTargets = process.env.ENABLE_FIXED_TARGETS === 'true';
 
         // Buy current price mode
@@ -841,10 +841,18 @@ class EnhancedTradingBot {
             let shouldCheckSellTrigger = false;
 
             if (targets.isFixed) {
-                // For fixed targets, check if current price has crossed the target thresholds
-                if (buyTargetPrice && currentPrice <= buyTargetPrice) {
-                    shouldCheckBuyTrigger = true;
-                    priceChangeFromLast = (currentPrice - buyTargetPrice) / buyTargetPrice; // Will be negative
+                // For fixed targets, still respect threshold-based logic
+                // Only buy if price has dropped significantly from last price, even with fixed targets
+                if (this.lastPrice && buyTargetPrice) {
+                    priceChangeFromLast = (currentPrice - this.lastPrice) / this.lastPrice;
+                    // Buy only if: price is near target AND we've had a significant drop from last price
+                    const nearTarget = currentPrice <= buyTargetPrice * 1.002; // Allow 0.2% tolerance
+                    const significantDrop = priceChangeFromLast <= -currentThreshold;
+                    shouldCheckBuyTrigger = nearTarget && significantDrop && availableUsdt >= this.minOrderSize;
+                    
+                    if (nearTarget && !significantDrop) {
+                        this.log(`🎯 Near buy target ($${buyTargetPrice.toFixed(4)}) but waiting for ${(currentThreshold * 100).toFixed(1)}% drop from last price`, 'INFO');
+                    }
                 }
                 
                 if (sellTargetPriceBasic && this.positions[this.baseCurrency] > 0) {
